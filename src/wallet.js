@@ -24,7 +24,7 @@ MyWallet.ws = new BlockchainSocket(null, WebSocket);
 
 // 🚨🚨🚨🚨🚨 v4 Check 🚨🚨🚨🚨🚨
 // V4 FLAG, THIS FLAG SHOULD BE SWITCHED AFTER iOS V. IS AT >= 80% ADOPTION
-var SHOULD_PERFORM_V4_UPGRADE = true
+global.SHOULD_PERFORM_V4_UPGRADE = true
 
 // used locally and overridden in iOS
 MyWallet.socketConnect = function () {
@@ -453,7 +453,7 @@ function syncWallet (successcallback, errorcallback) {
       data,
       WalletStore.getPassword(),
       WalletStore.getPbkdf2Iterations(),
-      MyWallet.wallet.isUpgradedToHD ? MyWallet.wallet.isUpgradedToV4 ? 4.0 : 3.0 : 2.0
+      MyWallet.wallet.isUpgradedToHD ? MyWallet.wallet.isUpgradedToV4 || SHOULD_PERFORM_V4_UPGRADE ? 4.0 : 3.0 : 2.0
     );
 
     if (crypted.length === 0) {

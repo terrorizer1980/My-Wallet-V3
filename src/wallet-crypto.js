@@ -6,6 +6,7 @@ var { pbkdf2Sync } = require('pbkdf2');
 
 var SUPPORTED_ENCRYPTION_VERSION = 4;
 var SALT_BYTES = 16;
+var AUTH_TAG_BYTES = 16;
 var KEY_BIT_LEN = 256;
 var BLOCK_BIT_LEN = 128;
 
@@ -86,6 +87,7 @@ var AES = {
   CBC: 'aes-256-cbc',
   OFB: 'aes-256-ofb',
   ECB: 'aes-256-ecb',
+  GCM: 'aes-256-gcm',
 
   /*
   *   Encrypt / Decrypt with aes-256
@@ -105,7 +107,12 @@ var AES = {
     if (options.padding) dataBytes = options.padding.pad(dataBytes, BLOCK_BIT_LEN / 8);
     var encryptedBytes = Buffer.concat([ cipher.update(dataBytes), cipher.final() ]);
 
-    return encryptedBytes;
+    let tag
+    if (options.mode === AES.GCM) {
+      tag = cipher.getAuthTag()
+    }
+
+    return { encryptedBytes, tag };
   },
 
   decrypt: function (dataBytes, key, salt, options) {
@@ -116,6 +123,8 @@ var AES = {
 
     var decipher = crypto.createDecipheriv(options.mode || AES.CBC, key, salt || '');
     decipher.setAutoPadding(!options.padding);
+
+    if (options.tag) decipher.setAuthTag(options.tag)
 
     var decryptedBytes = Buffer.concat([ decipher.update(dataBytes), decipher.final() ]);
     if (options.padding) decryptedBytes = options.padding.unpad(decryptedBytes);
@@ -170,8 +179,13 @@ function decryptWalletSync (data, password) {
 
   try {
     // v2/v3: CBC, ISO10126, iterations in wrapper
-    decrypted = decryptDataWithPassword(wrapper.payload, password, wrapper.pbkdf2_iterations);
-    decrypted = JSON.parse(decrypted);
+    try {
+      decrypted = decryptDataWithPassword(wrapper.payload, password, wrapper.pbkdf2_iterations, { mode: AES.GCM });
+      decrypted = JSON.parse(decrypted);
+    } catch (e) {
+      decrypted = decryptDataWithPassword(wrapper.payload, password, wrapper.pbkdf2_iterations);
+      decrypted = JSON.parse(decrypted);
+    }
   } catch (e) {
     decrypted = decryptWalletV1(data, password);
   } finally {
@@ -253,16 +267,16 @@ function decryptPasswordWithProcessedPin (data, password, pbkdf2Iterations) {
 // key: AES key (256 bit Buffer)
 // iv: optional initialization vector
 // returns: concatenated and Base64 encoded iv + payload
-function encryptDataWithKey (data, key, iv) {
-  iv = iv || crypto.randomBytes(SALT_BYTES);
-
-  var dataBytes = new Buffer(data, 'utf8');
-  var options = { mode: AES.CBC, padding: Iso10126 };
-
-  var encryptedBytes = AES.encrypt(dataBytes, key, iv, options);
-  var payload = Buffer.concat([ iv, encryptedBytes ]);
-
-  return payload.toString('base64');
+function encryptDataWithKey (data, key, iv, options) {
+  options = options || {}
+  options.padding = Iso10126
+  let IV = iv || crypto.randomBytes(SALT_BYTES)
+  let dataBytes = Buffer.from(data, 'utf8')
+  let { encryptedBytes, tag } = AES.encrypt(dataBytes, key, IV, options)
+  let payload = tag
+    ? Buffer.concat([tag, IV, encryptedBytes])
+    : Buffer.concat([IV, encryptedBytes])
+  return payload.toString('base64')
 }
 
 function encryptDataWithPassword (data, password, iterations) {
@@ -294,9 +308,10 @@ function decryptDataWithKey (data, key) {
 // key: AES key (256 bit Buffer)
 // options: (optional)
 // returns: decrypted payload (e.g. a JSON string)
-function decryptBufferWithKey (payload, iv, key, options) {
+function decryptBufferWithKey (payload, iv, key, tag, options) {
   options = options || {};
   options.padding = options.padding || Iso10126;
+  options.tag = tag
 
   var decryptedBytes = AES.decrypt(payload, key, iv, options);
   return decryptedBytes.toString('utf8');
@@ -309,15 +324,24 @@ function decryptDataWithPassword (data, password, iterations, options) {
 
   var dataHex = new Buffer(data, 'base64');
 
-  var iv = dataHex.slice(0, SALT_BYTES);
-  var payload = dataHex.slice(SALT_BYTES);
+  let tag
+  let iv
+  let payload
+  if (options && options.mode === AES.GCM) {
+    tag = dataHex.slice(0, AUTH_TAG_BYTES)
+    iv = dataHex.slice(AUTH_TAG_BYTES, AUTH_TAG_BYTES + SALT_BYTES)
+    payload = dataHex.slice(AUTH_TAG_BYTES + SALT_BYTES)
+  } else {
+    iv = dataHex.slice(0, SALT_BYTES)
+    payload = dataHex.slice(SALT_BYTES)
+  }
 
   //  AES initialization vector is also used as the salt in password stretching
   var salt = iv;
   // Expose stretchPassword for iOS to override
   var key = module.exports.stretchPassword(password, salt, iterations, KEY_BIT_LEN);
 
-  var res = module.exports.decryptBufferWithKey(payload, iv, key, options);
+  var res = module.exports.decryptBufferWithKey(payload, iv, key, tag, options);
   return res;
 }
 

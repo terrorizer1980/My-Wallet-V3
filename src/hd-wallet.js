@@ -1,24 +1,24 @@
-'use strict';
+"use strict";
 
 module.exports = HDWallet;
 
-var Bitcoin = require('bitcoinjs-lib');
-var assert = require('assert');
-var R = require('ramda');
-var Helpers = require('./helpers');
-var HDAccount = require('./hd-account');
-var HDAccountV4 = require('./hd-account-v4');
-var BIP39 = require('bip39');
-var MyWallet = require('./wallet'); // This cyclic import should be avoided once the refactor is complete
-var API = require('./api');
-var { addIndexToOutput } = require('./bch/bch-api');
-var { selectAll } = require('./coin-selection');
-var signer = require('./signer');
-var Coin = require('./coin');
-var constants = require('./constants');
+var Bitcoin = require("bitcoinjs-lib");
+var assert = require("assert");
+var R = require("ramda");
+var Helpers = require("./helpers");
+var HDAccount = require("./hd-account");
+var HDAccountV4 = require("./hd-account-v4");
+var BIP39 = require("bip39");
+var MyWallet = require("./wallet"); // This cyclic import should be avoided once the refactor is complete
+var API = require("./api");
+var { addIndexToOutput } = require("./bch/bch-api");
+var { selectAll } = require("./coin-selection");
+var signer = require("./signer");
+var Coin = require("./coin");
+var constants = require("./constants");
 
-function HDWallet (object) {
-  function addAccount (o, index) {
+function HDWallet(object) {
+  function addAccount(o, index) {
     o.index = index;
     // v4 Check
     return o.derivations ? HDAccountV4.factory(o) : HDAccount.factory(o);
@@ -33,131 +33,180 @@ function HDWallet (object) {
   this._mnemonic_verified = obj.mnemonic_verified;
   this._default_account_idx = obj.default_account_idx;
   this._accounts = obj.accounts.map(addAccount);
-  this._is_upgraded_to_v4 = obj.accounts.some((a) => a.derivations && a.derivations.length)
+  this._is_upgraded_to_v4 = obj.accounts.some(
+    a => a.derivations && a.derivations.length
+  );
 }
 
 Object.defineProperties(HDWallet.prototype, {
-  'seedHex': {
+  seedHex: {
     configurable: false,
-    get: function () { return this._seedHex; }
+    get: function() {
+      return this._seedHex;
+    }
   },
-  'bip39Password': {
+  bip39Password: {
     configurable: false,
-    get: function () { return this._bip39Password; }
+    get: function() {
+      return this._bip39Password;
+    }
   },
-  'isMnemonicVerified': {
+  isMnemonicVerified: {
     configurable: false,
-    get: function () { return this._mnemonic_verified; }
+    get: function() {
+      return this._mnemonic_verified;
+    }
   },
-  'defaultAccountIndex': {
+  defaultAccountIndex: {
     configurable: false,
-    get: function () { return this._default_account_idx; },
-    set: function (value) {
+    get: function() {
+      return this._default_account_idx;
+    },
+    set: function(value) {
       if (this.isValidAccountIndex(value)) {
         this._default_account_idx = value;
         MyWallet.syncWallet();
       } else {
-        throw new Error('unvalid default index account');
+        throw new Error("unvalid default index account");
       }
     }
   },
-  'defaultAccount': {
+  defaultAccount: {
     configurable: false,
-    get: function () { return this._accounts[this._default_account_idx]; }
-  },
-  'accounts': {
-    configurable: false,
-    get: function () {
-      return this._accounts.map(function (a) { return a; });
+    get: function() {
+      return this._accounts[this._default_account_idx];
     }
   },
-  'activeAccounts': {
+  accounts: {
     configurable: false,
-    get: function () {
-      return this._accounts.filter(function (a) { return !a.archived; });
+    get: function() {
+      return this._accounts.map(function(a) {
+        return a;
+      });
     }
   },
-  'xpubs': {
+  activeAccounts: {
     configurable: false,
-    get: function () {
+    get: function() {
+      return this._accounts.filter(function(a) {
+        return !a.archived;
+      });
+    }
+  },
+  xpubs: {
+    configurable: false,
+    get: function() {
       // v4 Check
-      return this.isUpgradedToV4 ? this._accounts.map(function (a) {
-        return a.derivations.map((d) => d.xpub);
-      }).flat() : this._accounts.map(function (a) { return (a.extendedPublicKey); });;
+      return this.isUpgradedToV4
+        ? this._accounts
+            .map(function(a) {
+              return a.derivations.map(d => d.xpub);
+            })
+            .flat()
+        : this._accounts.map(function(a) {
+            return a.extendedPublicKey;
+          });
     }
   },
-  'activeXpubs': {
+  activeXpubs: {
     configurable: false,
-    get: function () {
+    get: function() {
       // v4 Check
-      return this.isUpgradedToV4 ? this.activeAccounts.map(function (a) {
-        return a.derivations.filter(d => d.type === 'legacy').map((d) => d.xpub);
-      }) : this.activeAccounts.map(function (a) { return (a.extendedPublicKey); });
+      return this.isUpgradedToV4
+        ? this.activeAccounts.map(function(a) {
+            return a.derivations
+              .filter(d => d.type === "legacy")
+              .map(d => d.xpub);
+          })
+        : this.activeAccounts.map(function(a) {
+            return a.extendedPublicKey;
+          });
     }
   },
-  'activeP2SHXpubs': {
+  activeP2SHXpubs: {
     configurable: false,
-    get: function () {
+    get: function() {
       // v4 Check
-      return this.isUpgradedToV4 ? this.activeAccounts.map(function (a) {
-        return a.derivations.filter(d => d.type === 'segwitP2SH').map((d) => d.xpub);
-      }) : [];
+      return this.isUpgradedToV4
+        ? this.activeAccounts.map(function(a) {
+            return a.derivations
+              .filter(d => d.type === "segwitP2SH")
+              .map(d => d.xpub);
+          })
+        : [];
     }
   },
-  'balanceActiveAccounts': {
+  balanceActiveAccounts: {
     configurable: false,
-    get: function () {
-      var balances = this.activeAccounts.map(function (k) { return k.balance; });
+    get: function() {
+      var balances = this.activeAccounts.map(function(k) {
+        return k.balance;
+      });
       if (balances.some(Helpers.isNotNumber)) return null;
       return balances.reduce(Helpers.add, 0);
     }
   },
-  'isEncrypted': {
+  isEncrypted: {
     configurable: false,
-    get: function () {
-      var isSeedEnc = Helpers.isBase64(this._seedHex) && !Helpers.isSeedHex(this._seedHex);
-      return isSeedEnc && this._accounts.map(function (a) { return a.isEncrypted; })
-                                          .reduce(Helpers.and, true);
+    get: function() {
+      var isSeedEnc =
+        Helpers.isBase64(this._seedHex) && !Helpers.isSeedHex(this._seedHex);
+      return (
+        isSeedEnc &&
+        this._accounts
+          .map(function(a) {
+            return a.isEncrypted;
+          })
+          .reduce(Helpers.and, true)
+      );
     }
   },
-  'isUnEncrypted': {
+  isUnEncrypted: {
     configurable: false,
-    get: function () {
+    get: function() {
       var isSeedUnEnc = Helpers.isSeedHex(this._seedHex);
-      return isSeedUnEnc && this._accounts.map(function (a) { return a.isUnEncrypted; })
-                             .reduce(Helpers.and, true);
+      return (
+        isSeedUnEnc &&
+        this._accounts
+          .map(function(a) {
+            return a.isUnEncrypted;
+          })
+          .reduce(Helpers.and, true)
+      );
     }
   },
   // v4 Check
-  'isUpgradedToV4': {
+  isUpgradedToV4: {
     configurable: false,
-    get: function () {
+    get: function() {
       return this._is_upgraded_to_v4;
     }
   },
-  'lastAccount': {
+  lastAccount: {
     configurable: false,
-    get: function () {
+    get: function() {
       return this._accounts[this._accounts.length - 1];
     }
   }
 });
 
 // non exposed functions
-function decryptMnemonic (seedHex, cipher) {
+function decryptMnemonic(seedHex, cipher) {
   if (cipher) {
     return BIP39.entropyToMnemonic(cipher(seedHex));
   } else {
     if (Helpers.isSeedHex(seedHex)) {
       return BIP39.entropyToMnemonic(seedHex);
     } else {
-      throw new Error('Decryption function needed to get the mnemonic');
+      throw new Error("Decryption function needed to get the mnemonic");
     }
   }
 }
 
-function decryptPassphrase (bip39Password, cipher) {
-  if (bip39Password === '') { return bip39Password; }
+function decryptPassphrase(bip39Password, cipher) {
+  if (bip39Password === "") {
+    return bip39Password;
+  }
   if (cipher) {
     return cipher(bip39Password);
   } else {
@@ -165,7 +214,7 @@ function decryptPassphrase (bip39Password, cipher) {
   }
 }
 
-HDWallet.getMasterHex = function (seedHex, bip39Password, cipher) {
+HDWallet.getMasterHex = function(seedHex, bip39Password, cipher) {
   var mnemonic = decryptMnemonic(seedHex, cipher);
   var passphrase = decryptPassphrase(bip39Password, cipher);
   return BIP39.mnemonicToSeed(mnemonic, passphrase);
@@ -178,11 +227,11 @@ HDWallet.getMasterHex = function (seedHex, bip39Password, cipher) {
 // load hdwallet
 // restore hdwallet
 
-HDWallet.new = function (mnemonic, bip39Password, cipher) {
-  assert(mnemonic, 'BIP 39 mnemonic required');
+HDWallet.new = function(mnemonic, bip39Password, cipher) {
+  assert(mnemonic, "BIP 39 mnemonic required");
   var seedHex = BIP39.mnemonicToEntropy(mnemonic);
 
-  if (!Helpers.isString(bip39Password)) bip39Password = '';
+  if (!Helpers.isString(bip39Password)) bip39Password = "";
   var hdwallet = {
     seed_hex: seedHex,
     passphrase: bip39Password,
@@ -198,7 +247,7 @@ HDWallet.new = function (mnemonic, bip39Password, cipher) {
   return hd;
 };
 
-HDWallet.factory = function (o) {
+HDWallet.factory = function(o) {
   if (o instanceof Object && !(o instanceof HDWallet)) {
     return new HDWallet(o);
   } else {
@@ -206,24 +255,28 @@ HDWallet.factory = function (o) {
   }
 };
 
-HDWallet.prototype.getMasterHDNode = function (cipher) {
+HDWallet.prototype.getMasterHDNode = function(cipher) {
   var dec;
 
   if (cipher) {
-    dec = cipher('dec');
+    dec = cipher("dec");
   }
 
-  var masterhex = HDWallet.getMasterHex(this._seedHex, this._bip39Password, dec);
+  var masterhex = HDWallet.getMasterHex(
+    this._seedHex,
+    this._bip39Password,
+    dec
+  );
   var network = constants.getNetwork();
   return Bitcoin.HDNode.fromSeedBuffer(masterhex, network);
 };
 
-HDWallet.prototype.newAccount = function (label, cipher) {
+HDWallet.prototype.newAccount = function(label, cipher) {
   var accIndex = this._accounts.length;
   var enc;
 
   if (cipher) {
-    enc = cipher('enc');
+    enc = cipher("enc");
   }
 
   var masterkey = this.getMasterHDNode(cipher);
@@ -235,7 +288,7 @@ HDWallet.prototype.newAccount = function (label, cipher) {
 
 // JSON serializer
 
-HDWallet.prototype.toJSON = function () {
+HDWallet.prototype.toJSON = function() {
   var hdwallet = {
     seed_hex: this._seedHex,
     passphrase: this._bip39Password,
@@ -246,33 +299,35 @@ HDWallet.prototype.toJSON = function () {
   return hdwallet;
 };
 
-HDWallet.reviver = function (k, v) {
-  if (k === '') return new HDWallet(v);
+HDWallet.reviver = function(k, v) {
+  if (k === "") return new HDWallet(v);
   return v;
 };
 
 // methods
 
-HDWallet.prototype.verifyMnemonic = function () {
+HDWallet.prototype.verifyMnemonic = function() {
   this._mnemonic_verified = true;
   MyWallet.syncWallet();
   return this;
 };
 
-HDWallet.prototype.account = function (xpub) {
-  var f
+HDWallet.prototype.account = function(xpub) {
+  var f;
   if (this.isUpgradedToV4) {
-    f = this._accounts
-              .filter(function (a) { return a.derivations.find(d => d.xpub === xpub); });
+    f = this._accounts.filter(function(a) {
+      return a.derivations.find(d => d.xpub === xpub);
+    });
   } else {
-    f = this._accounts
-            .filter(function (a) { return a.extendedPublicKey === xpub; });
+    f = this._accounts.filter(function(a) {
+      return a.extendedPublicKey === xpub;
+    });
   }
   var r = f.length === 0 ? null : f[0];
   return r;
 };
 
-HDWallet.prototype.activeAccount = function (xpub) {
+HDWallet.prototype.activeAccount = function(xpub) {
   var a = this.account(xpub);
   var r = !a || a.archived ? null : a;
   return r;
@@ -280,53 +335,75 @@ HDWallet.prototype.activeAccount = function (xpub) {
 
 // account managment
 
-HDWallet.prototype.encrypt = function (cipher) {
-  function f (acc) { acc.encrypt(cipher); }
+HDWallet.prototype.encrypt = function(cipher) {
+  function f(acc) {
+    acc.encrypt(cipher);
+  }
   this._accounts.forEach(f);
   this._temporal_seedHex = cipher(this._seedHex);
-  this._temporal_bip39Password = this._bip39Password === ''
-   ? this._bip39Password
-   : cipher(this._bip39Password);
+  this._temporal_bip39Password =
+    this._bip39Password === ""
+      ? this._bip39Password
+      : cipher(this._bip39Password);
   return this;
 };
 
-HDWallet.prototype.decrypt = function (cipher) {
-  function f (acc) { acc.decrypt(cipher); }
+HDWallet.prototype.decrypt = function(cipher) {
+  function f(acc) {
+    acc.decrypt(cipher);
+  }
   this._accounts.forEach(f);
   this._temporal_seedHex = cipher(this._seedHex);
-  this._temporal_bip39Password = this._bip39Password === ''
-   ? this._bip39Password
-   : cipher(this._bip39Password);
+  this._temporal_bip39Password =
+    this._bip39Password === ""
+      ? this._bip39Password
+      : cipher(this._bip39Password);
   return this;
 };
 
-HDWallet.prototype.persist = function () {
-  if (this._temporal_seedHex === undefined || this._temporal_bip39Password === undefined) {
+HDWallet.prototype.persist = function() {
+  if (
+    this._temporal_seedHex === undefined ||
+    this._temporal_bip39Password === undefined
+  ) {
     return this;
   }
   this._seedHex = this._temporal_seedHex;
   this._bip39Password = this._temporal_bip39Password;
   delete this._temporal_seedHex;
   delete this._temporal_bip39Password;
-  function f (acc) { acc.persist(); }
+  function f(acc) {
+    acc.persist();
+  }
   this._accounts.forEach(f);
   return this;
 };
 
 // checkers
-HDWallet.prototype.isValidAccountIndex = function (index) {
+HDWallet.prototype.isValidAccountIndex = function(index) {
   return Helpers.isPositiveInteger(index) && index < this._accounts.length;
 };
 
-HDWallet.prototype.createConsolidationPayment = function (toAccount, feePerByte, secPass) {
-  let outputToCoin = R.compose(Coin.fromJS, addIndexToOutput(this));
+HDWallet.prototype.createConsolidationPayment = function(
+  toAccount,
+  feePerByte,
+  secPass
+) {
+  let outputToCoin = R.compose(
+    Coin.fromJS,
+    addIndexToOutput(this)
+  );
 
   let createPayment = (selection, tx) => ({
-    get fee () { return selection.fee; },
-    publish () { return API.pushTx(tx.toHex()).then(() => ({ hash: tx.getId() })); }
+    get fee() {
+      return selection.fee;
+    },
+    publish() {
+      return API.pushTx(tx.toHex()).then(() => ({ hash: tx.getId() }));
+    }
   });
 
-  let paymentFromCoins = (coins) => {
+  let paymentFromCoins = coins => {
     let selection = selectAll(feePerByte, coins, toAccount.receiveAddress);
     let tx = signer.signBitcoin(secPass, MyWallet.wallet, selection);
     return createPayment(selection, tx);

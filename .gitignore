@@ -21,3 +21,5 @@ lib
 # Generated coverage reports
 coverage
 coverage-lcov
+
+.vscode
