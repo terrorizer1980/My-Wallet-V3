@@ -47,7 +47,7 @@
     "babel-preset-stage-0": "^6.24.1",
     "bigi": "1.4.*",
     "bignumber.js": "^4.0.2",
-    "bip39": "2.1.*",
+    "bip39": "2.6.0",
     "bitcoin-coinify-client": "^0.7.6",
     "bitcoin-sfox-client": "^0.3.0",
     "bitcoin-unocoin-client": "^0.3.6",
