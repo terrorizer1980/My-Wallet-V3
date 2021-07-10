@@ -1138,18 +1138,26 @@ bitcoin-exchange-client@^0.5.0:
   dependencies:
     isomorphic-fetch "^2.2.0"
 
+bitcoin-exchange-client@^0.6.0:
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/bitcoin-exchange-client/-/bitcoin-exchange-client-0.6.0.tgz#917a9358625cd01c9b56bfe956f45ff751ba95a1"
+  integrity sha1-kXqTWGJc0BybVr/pVvRf91G6laE=
+  dependencies:
+    isomorphic-fetch "^2.2.0"
+
 bitcoin-ops@^1.3.0:
   version "1.4.0"
   resolved "https://registry.npmjs.org/bitcoin-ops/-/bitcoin-ops-1.4.0.tgz#90d9c95c067e9a34a6ccaa3dd324ffa84e31e3d8"
 
-bitcoin-sfox-client@^0.3.0:
-  version "0.3.1"
-  resolved "https://registry.npmjs.org/bitcoin-sfox-client/-/bitcoin-sfox-client-0.3.1.tgz#096e77505fe0cb8845b410b58c6a9ee198146fbc"
+bitcoin-sfox-client@^0.4.4:
+  version "0.4.4"
+  resolved "https://registry.yarnpkg.com/bitcoin-sfox-client/-/bitcoin-sfox-client-0.4.4.tgz#bae8858dd29f21670d10bf4f61e7e440fc682ccd"
+  integrity sha512-+bCNaxOBiRC/KMpiRPjR1GBcnALCOdJoEh3aW+xZpUZJ8HyxR9ASckZ0yEaVAI6lIRF98yC37lBuBG0HGUb1Rw==
   dependencies:
     babel-polyfill "6.16.*"
     babel-preset-es2015 "6.16.*"
     babelify "7.3.*"
-    bitcoin-exchange-client "^0.5.0"
+    bitcoin-exchange-client "^0.6.0"
 
 bitcoin-unocoin-client@^0.3.6:
   version "0.3.6"
